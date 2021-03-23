@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -10,14 +10,7 @@ namespace ImageScaling
     {
         #region Local_Params
         // Local variables & types
-        private static object _lock = new object();
-        private static Stopwatch _stopwatch = new Stopwatch();
-
-        struct Pixel
-        {
-            public int X { get; set; }
-            public int Y { get; set; }
-        }
+        private static readonly object _lock = new object();
         #endregion
 
         #region Main_Method
@@ -48,48 +41,20 @@ namespace ImageScaling
             // Switch Handling
             Console.WriteLine("Press (1) async, (2) sync image scaling ...");
             string _switchCheck = Console.ReadLine();
-            Console.WriteLine();
 
             // Image scaling
             Bitmap scaled = new Bitmap(1,1);
+
             switch (_switchCheck)
             {
                 case "1":
-                    // Print original Bitmap size
-                    Console.WriteLine("***************************************************");
-                    Console.WriteLine($"Original image details : {original.Width}-{original.Height}");
-
                     // Scale Bitmap using Async method
-                    Console.WriteLine($"Scaling async call ...");
-
-                    _stopwatch.Start();
                     scaled = await ScaleImageAsync(original);
-                    _stopwatch.Stop();
-
-                    Console.WriteLine($"Method processing time : {_stopwatch.ElapsedMilliseconds}");
-
-                    // Print scaled Bitmap size
-                    Console.WriteLine($"Scaled image details: {scaled.Width}-{scaled.Height}");
-                    Console.WriteLine("***************************************************");
                     break;
 
                 case "2":
-                    // Print original Bitmap size
-                    Console.WriteLine("***************************************************");
-                    Console.WriteLine($"Original image details : {original.Width}-{original.Height}");
-
                     // Scale Bitmap using Sync method
-                    Console.WriteLine($"Scaling sync call ...");
-
-                    _stopwatch.Start();
                     scaled = ScaleImageSync(original);
-                    _stopwatch.Stop();
-
-                    Console.WriteLine($"Method processing time : {_stopwatch.ElapsedMilliseconds}");
-
-                    // Print scaled Bitmap size
-                    Console.WriteLine($"Scaled image details: {scaled.Width}-{scaled.Height}");
-                    Console.WriteLine("***************************************************");
                     break;
 
                 default:
@@ -103,7 +68,6 @@ namespace ImageScaling
             // Clean Up
             original.Dispose();
             scaled.Dispose();
-            _stopwatch.Restart();
 
         End:
             return true;
@@ -136,114 +100,63 @@ namespace ImageScaling
         {
             Bitmap scaledImage = new Bitmap(bitmap.Width * 2, bitmap.Height * 2);
 
-            await Task.WhenAll(Task.Run(() => Q1(bitmap, scaledImage)), Task.Run(() => Q2(bitmap, scaledImage)), Task.Run(() => Q3(bitmap, scaledImage)), Task.Run(() => Q4(bitmap, scaledImage)));
+            await Task.WhenAll(
+                Task.Run(() => BuildQuarter(1, bitmap, scaledImage)),
+                Task.Run(() => BuildQuarter(2, bitmap, scaledImage )),
+                Task.Run(() => BuildQuarter(3, bitmap, scaledImage)), 
+                Task.Run(() => BuildQuarter(4, bitmap, scaledImage))
+                );
 
             return scaledImage;
         }
 
-        // Handles quarter 1 processing
-        static void Q1(Bitmap bitmap, Bitmap scaledImage)
+        // Handles quarter processing
+        static void BuildQuarter(int quarter, Bitmap bitmap, Bitmap scaledImage, bool greyScale = false)
         {
+            int xStart = 0, xEnd = 0, yStart = 0, yEnd = 0;
             Color color;
-            Bitmap cloneBitmap;
+            Bitmap cloneBitmap = bitmap;
 
-            lock (_lock)
+            lock (_lock) cloneBitmap = (Bitmap)bitmap.Clone();
+
+            switch (quarter)
             {
-                cloneBitmap = (Bitmap)bitmap.Clone();
+                case 1:
+                    xStart = 0;
+                    xEnd = cloneBitmap.Width / 2;
+                    yStart = 0;
+                    yEnd = cloneBitmap.Height / 2;
+                    break;
+                case 2:
+                    xStart = 0;
+                    xEnd = cloneBitmap.Width / 2;
+                    yStart = cloneBitmap.Height / 2;
+                    yEnd = cloneBitmap.Height;
+                    break;
+                case 3:
+                    xStart = cloneBitmap.Width / 2;
+                    xEnd = cloneBitmap.Width;
+                    yStart = 0;
+                    yEnd = cloneBitmap.Height / 2;
+                    break;
+                case 4:
+                    xStart = cloneBitmap.Width / 2;
+                    xEnd = cloneBitmap.Width;
+                    yStart = cloneBitmap.Height / 2;
+                    yEnd = cloneBitmap.Height;
+                    break;
+                default:
+                    break;
             }
 
-            for (int y = 0; y < cloneBitmap.Height / 2; y++)
+            for (int y = yStart; y < yEnd; y++)
             {
-                for (int x = 0; x < cloneBitmap.Width / 2; x++)
+                for (int x = xStart; x < xEnd; x++)
                 {
                     color = cloneBitmap.GetPixel(x, y);
-                    lock (_lock)
-                    {
-                        scaledImage.SetPixel((x * 2), (y * 2), color); // start
-                        scaledImage.SetPixel((x * 2), (y * 2) + 1, color); // down
-                        scaledImage.SetPixel((x * 2) + 1, (y * 2), color); // right
-                        scaledImage.SetPixel((x * 2) + 1, (y * 2) + 1, color); // end
-                    }
-                }
-            }
 
-            cloneBitmap.Dispose();
-        }
+                    if (greyScale) color = GetColorGreyScale(color);
 
-        // Handles quarter 2 processing
-        static void Q2(Bitmap bitmap, Bitmap scaledImage)
-        {
-            Color color;
-            Bitmap cloneBitmap;
-
-            lock (_lock)
-            {
-                cloneBitmap = (Bitmap)bitmap.Clone();
-            }
-
-            for (int y = cloneBitmap.Height / 2; y < cloneBitmap.Height; y++)
-            {
-                for (int x = 0; x < cloneBitmap.Width / 2; x++)
-                {
-                    color = cloneBitmap.GetPixel(x, y);
-                    lock (_lock)
-                    {
-                        scaledImage.SetPixel((x * 2), (y * 2), color); // start
-                        scaledImage.SetPixel((x * 2), (y * 2) + 1, color); // down
-                        scaledImage.SetPixel((x * 2) + 1, (y * 2), color); // right
-                        scaledImage.SetPixel((x * 2) + 1, (y * 2) + 1, color); // end
-                    }
-                }
-            }
-
-            cloneBitmap.Dispose();
-        }
-
-        // Handles quarter 3 processing
-        static void Q3(Bitmap bitmap, Bitmap scaledImage)
-        {
-            Color color;
-            Bitmap cloneBitmap;
-
-            lock (_lock)
-            {
-                cloneBitmap = (Bitmap)bitmap.Clone();
-            }
-
-            for (int y = 0; y < cloneBitmap.Height / 2; y++)
-            {
-                for (int x = cloneBitmap.Width / 2; x < cloneBitmap.Width; x++)
-                {
-                    color = cloneBitmap.GetPixel(x, y);
-                    lock (_lock)
-                    {
-                        scaledImage.SetPixel((x * 2), (y * 2), color); // start
-                        scaledImage.SetPixel((x * 2), (y * 2) + 1, color); // down
-                        scaledImage.SetPixel((x * 2) + 1, (y * 2), color); // right
-                        scaledImage.SetPixel((x * 2) + 1, (y * 2) + 1, color); // end
-                    }
-                }
-            }
-
-            cloneBitmap.Dispose();
-        }
-
-        // Handles quarter 4 processing
-        static void Q4(Bitmap bitmap, Bitmap scaledImage)
-        {
-            Color color;
-            Bitmap cloneBitmap;
-
-            lock (_lock)
-            {
-                cloneBitmap = (Bitmap)bitmap.Clone();
-            }
-
-            for (int y = cloneBitmap.Height / 2; y < cloneBitmap.Height; y++)
-            {
-                for (int x = cloneBitmap.Width / 2; x < cloneBitmap.Width; x++)
-                {
-                    color = cloneBitmap.GetPixel(x, y);
                     lock (_lock)
                     {
                         scaledImage.SetPixel((x * 2), (y * 2), color); // start
@@ -260,7 +173,7 @@ namespace ImageScaling
 
         #region Sync_Image_Scaling
         // asynchronous scaling of the image on the main thread
-        static Bitmap ScaleImageSync(Bitmap bitmap)
+        static Bitmap ScaleImageSync(Bitmap bitmap, bool greyScale = false)
         {
             Color color;
             Bitmap scaledImage = new Bitmap(bitmap.Width * 2, bitmap.Height * 2);
@@ -270,6 +183,9 @@ namespace ImageScaling
                 for (int x = 0; x < bitmap.Width; x++)
                 {
                     color = bitmap.GetPixel(x, y);
+
+                    if (greyScale) color = GetColorGreyScale(color);
+
                     scaledImage.SetPixel((x * 2), (y * 2), color); // start
                     scaledImage.SetPixel((x * 2), (y * 2) + 1, color); // down
                     scaledImage.SetPixel((x * 2) + 1, (y * 2), color); // right
@@ -278,6 +194,12 @@ namespace ImageScaling
             }
 
             return scaledImage;
+        }
+
+        static Color GetColorGreyScale(Color color)
+        {
+            int greyScale = (int)((color.R * 0.299) + (color.G * 0.587) + (color.B * 0.114));
+            return Color.FromArgb(greyScale, greyScale, greyScale);
         }
         #endregion
     }
